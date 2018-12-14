@@ -44,8 +44,8 @@ void main()
 fragment_template = """
 #version 120
 
-uniform vec3      iResolution;           // viewport resolution (in pixels)
-uniform float     iGlobalTime;           // shader playback time (in seconds)
+uniform vec3      u_resolution;           // viewport resolution (in pixels)
+uniform float     u_time;           // shader playback time (in seconds)
 uniform vec4      iMouse;                // mouse pixel coords
 uniform vec4      iDate;                 // (year, month, day, time in seconds)
 uniform float     iSampleRate;           // sound sample rate (i.e., 44100)
@@ -59,19 +59,15 @@ uniform vec2      iOffset;               // pixel offset for tiled rendering
 
 %s
 
-void main()
-{
-    mainImage(gl_FragColor, gl_FragCoord.xy + iOffset);
-}
 """
 
 preamble_lines = fragment_template.split('\n').index("%s")
 
 error_shader = """
-void mainImage( out vec4 fragColor, in vec2 fragCoord )
+void main()
 {
-    vec2 uv = fragCoord.xy / iResolution.xy;
-    fragColor = vec4(uv,0.5+0.5*sin(iGlobalTime),1.0);
+    vec2 uv = gl_FragCoord.xy / u_resolution.xy;
+    gl_FragColor = vec4(uv,0.5+0.5*sin(u_time),1.0);
 }
 """
 
@@ -158,7 +154,7 @@ class RenderingCanvas(app.Canvas):
 
         for i in range(4):
             self.program['iChannelTime[%d]' % i] = 0.0
-        self.program['iGlobalTime'] = start_time
+        self.program['u_time'] = start_time
 
         self.program['iOffset'] = 0.0, 0.0
 
@@ -194,7 +190,7 @@ class RenderingCanvas(app.Canvas):
             if self._progress_file:
                 self.write_img(self._img, self._progress_file)
 
-            self.program['iResolution'] = self._output_size + (0.,)
+            self.program['u_resolution'] = self._output_size + (0.,)
             self.ensure_timer()
 
     def set_channel_input(self, img, i=0):
@@ -210,9 +206,9 @@ class RenderingCanvas(app.Canvas):
     def advance_time(self):
         if not self._paused:
             if self._interval == 'auto':
-                self.program['iGlobalTime'] = time.clock() - self._clock_time_zero
+                self.program['u_time'] = time.clock() - self._clock_time_zero
             else:
-                self.program['iGlobalTime'] += self._interval
+                self.program['u_time'] += self._interval
 
     def write_video_frame(self, img):
         if img.shape[0] != self._output_size[1] or img.shape[1] != self._output_size[0]:
@@ -344,7 +340,7 @@ class RenderingCanvas(app.Canvas):
             if event.key == keys.LEFT:
                 step *= -1.0
 
-            self.program['iGlobalTime'] += step
+            self.program['u_time'] += step
 
             self.print_t()
 
@@ -412,7 +408,7 @@ class RenderingCanvas(app.Canvas):
     def activate_zoom(self):
         if self._interactive:
             gloo.set_viewport(0, 0, *self.physical_size)
-            self.program['iResolution'] = (self.physical_size[0], self.physical_size[1], 0.0)
+            self.program['u_resolution'] = (self.physical_size[0], self.physical_size[1], 0.0)
 
     def process_errors(self, errors):
         # NOTE (jasminp) Error message format depends on driver. Does this catch them all?
@@ -435,7 +431,7 @@ class RenderingCanvas(app.Canvas):
         return '\n'.join(linesOut)
 
     def print_t(self):
-        print("t=%f" % self.program['iGlobalTime'])
+        print("t=%f" % self.program['u_time'])
 
     def ensure_timer(self):
         if not self._timer:
@@ -445,7 +441,7 @@ class RenderingCanvas(app.Canvas):
 
     def update_timer_state(self):
         if not self._paused:
-            self._clock_time_zero = time.clock() - self.program['iGlobalTime']
+            self._clock_time_zero = time.clock() - self.program['u_time']
             self.ensure_timer()
         else:
             if self._profile:
